@@ -1,0 +1,32 @@
+packer= creating ami image for multiple platform by single configuration file
+extention=json,hcl(honicorp corporationn ltd)
+
+code=xyz.json(name),builders(Target->awz/azure/gcp),provisiners.
+
+CRQ?	
+Mutable infrastructure=infrastructure run with update image
+ImMutable=infrastructure run with new update image and clear old image 
+
+adv.:-
+open source tool,support all OS platforms,preconfigured OS,integrate with puppet and chef
+
+azure image are region specific image.and include additional cost for storage.
+
+./packer.exe --version
+
+it use custom json tamplates to create image
+uses HCL syntax to write JSON,easy for human read
+variables:-
+Builders:-
+Provisioners:- it use builtin and 3rd party software to install and configure the machine image after booting. it include(install package,patching kernel,creating users,downloading application code.)
+Post-Processors:-it runs after the image built by the builder and provsisoner. it user to upload artifact,re-package.
+
+what is sp in azure, and how to use it?
+. assign permission for sp= azure active directory -> app rezistration -> new -> url(https://packer.com) -> copy (clinet ID,tenent ID,S id,Subscription,secret value(app rezistration -> certificate & secrets-> create client secret)
+. Json to create  linux image=
+. Json to create image=./packer.exe ./customLinux.json
+. validation json=./packer.exe validate customLinux.json
+. build image=./packer.exe build customLinux.json
+
+
+
