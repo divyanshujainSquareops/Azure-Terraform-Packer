@@ -1,0 +1,38 @@
+{
+    "builders": [{
+        "type": "azure-arm",
+
+        "client_secret" : "q1T8QhKy~DV6lzIIibhTOHs6LV1Lk_Tbyy",
+        "client_id" :"577ef552--4c99-b9d9-6d116d398259",
+       "tenant_id":"aa225ace-4220--944d-bb7f853c4baa",
+        "subscription_id":"46dbdd8a--4055-8cca-74f21476c43e",
+
+        "managed_image_resource_group_name": "multi-instance-resource-group",
+        "managed_image_name": "linux_image",
+
+        "os_type": "Linux",
+        "image_publisher": "Canonical",
+        "image_offer": "UbuntuServer",
+        "image_sku": "16.04-LTS",
+
+        "azure_tags":{
+            "dept": "NA",
+            "task": "packerdemo"
+        },
+
+        "location": "East US2",
+        "vm_size": "Standard_B1s"
+    }],
+    "provisioners": [{
+        "execute_command": "chmod +x {{ .Path }};{{ .Vars }} sudo -E sh '{{ .Path }}'",
+        "inline": [
+            "apt-get update",
+            "apt-get upgrade -y",
+            "apt-get -y install apache2",
+
+            "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"
+        ],
+        "inline_shebang": "/bin/sh-x",
+        "type": "shell" 
+    }]
+}
