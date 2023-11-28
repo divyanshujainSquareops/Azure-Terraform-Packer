@@ -9,8 +9,6 @@ module "wordpress-network-security-group" {
   resource_group_name   = azurerm_resource_group.RG_Terraform.name
   location              = azurerm_resource_group.RG_Terraform.location
   security_group_name   = "nsg-wordpress-Terraform"
-  source_address_prefix = ["10.0.0.0/16"]
-  destination_address_prefix  =["${azurerm_network_interface.NicTerra_Mysql.private_ip_address}"]
   predefined_rules = []
 
   custom_rules = [
@@ -21,7 +19,8 @@ module "wordpress-network-security-group" {
       access                 = "Allow"
       protocol               = "Tcp"
       source_port_range      = "*"
-      destination_port_range = "*"
+      source_address_prefix = "10.0.0.0/16"
+      destination_port_range = "22"
       description            = "description-myssh"
     },
       {
@@ -33,33 +32,33 @@ module "wordpress-network-security-group" {
       source_port_range       = "*"
       destination_port_range  = "3306"
       description             = "description-http"
+      source_address_prefix = "10.0.0.0/16"
+      destination_address_prefix  ="${data.azurerm_network_interface.NicTerra_Mysql.private_ip_address}"
     },
   ]
-  depends_on = [ azurerm_resource_group.RG_Terraform ,module.vnet,azurerm_network_interface.NicTerra_Mysql,
+  depends_on = [ azurerm_resource_group.RG_Terraform ,module.vnet,azurerm_network_interface.Network_interface_terraform
   ]
 
 }
-
 #create n/w security rule
 module "mysql-network-security-group" {
   source                = "Azure/network-security-group/azurerm"
   resource_group_name   = azurerm_resource_group.RG_Terraform.name
   location              = azurerm_resource_group.RG_Terraform.location
   security_group_name   = "nsg-mysql-Terraform"
-  source_address_prefix = ["10.0.3.0/24"]
-  destination_address_prefix  =["10.0.3.0/24"]
   predefined_rules = []
 
   custom_rules = [
     {
-      name                   = "myssh"
+      name                   = "wordpress-mysql-rule"
       priority               = 201
       direction              = "Inbound"
       access                 = "Allow"
       protocol               = "Tcp"
       source_port_range      = "*"
       destination_port_range = "*"
-      description            = "description-myssh"
+      source_address_prefix = "10.0.3.0/24"
+      destination_address_prefix  ="10.0.3.0/24"
     },
   ]
   depends_on = [ azurerm_resource_group.RG_Terraform,module.vnet ]
@@ -76,22 +75,11 @@ module "public_rt" {
      ]
   disable_bgp_route_propagation = false
 }
-# module "private_rt" {
-#   source              = "git::https://github.com/aztfm/terraform-azurerm-route-table.git"
-#   name                = var.azurerm_public_rt_name
-#   resource_group_name = azurerm_resource_group.RG_Terraform.name
-#   location            = azurerm_resource_group.RG_Terraform.location
-#   routes = [
-#     { name = "route3", address_prefix = "10.0.3.0/24", next_hop_type = "VnetLocal" },
-#     { name = "route4", address_prefix = "10.0.4.0/24", next_hop_type = "VnetLocal" },
-#      ]
-#   disable_bgp_route_propagation = false
-# }
 
 ########################                     private rt
 module "private_rt" {
   source              = "git::https://github.com/aztfm/terraform-azurerm-route-table.git"
-  name                = var.azurerm_public_rt_name
+  name                = var.azurerm_private_rt_name
   resource_group_name = azurerm_resource_group.RG_Terraform.name
   location            = azurerm_resource_group.RG_Terraform.location
   routes = [
@@ -166,16 +154,18 @@ resource "azurerm_bastion_host" "bastion" {
       module.Public-ip_module
       ]
 }
-######## ###########################################        mysql db virtual  machine -
+
+########################################################### Virtual Machine`s
 #Create Network interface
-resource "azurerm_network_interface" "NicTerra_Mysql" {
-  name                = "NIC-Mysql-private-subnet1-Terraform"
+resource "azurerm_network_interface" "Network_interface_terraform" {
+   count = length(var.network_interface_names)
+   name = var.network_interface_names[count.index]
   location            = azurerm_resource_group.RG_Terraform.location
   resource_group_name = azurerm_resource_group.RG_Terraform.name
 
   ip_configuration {
-    name                          = "TestIpTerra2"
-    subnet_id                     = data.azurerm_subnet.private_subnet_2.id
+    name                          = "TestIpTerra${count.index}"
+    subnet_id                     = count.index==0?data.azurerm_subnet.private_subnet_2.id:data.azurerm_subnet.private_subnet_1.id
     private_ip_address_allocation =  "Dynamic"
     
   }
@@ -184,170 +174,64 @@ resource "azurerm_network_interface" "NicTerra_Mysql" {
     module.vnet
    ]
 }
-#Create virtual machine
-resource "azurerm_linux_virtual_machine" "MySql_Private_Vm" {
-  name                = "Mysql-VM-Terraform"
+resource "azurerm_linux_virtual_machine" "Virtual_Machine" {
+  count               = length(var.vm_names)
+  name                = var.vm_names[count.index]
   resource_group_name = azurerm_resource_group.RG_Terraform.name
   location            = azurerm_resource_group.RG_Terraform.location
   size                = "Standard_B1s"
   admin_username      = "azureuser"
-  admin_password = "Deepu@123#123"
+  admin_password      = "Deepu@123#123"
   disable_password_authentication = false
+
   network_interface_ids = [
-    azurerm_network_interface.NicTerra_Mysql.id
-  ]  
+    count.index == 0 ? data.azurerm_network_interface.NicTerra_Mysql.id :
+    count.index == 1 ? data.azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.id :
+                       data.azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.id
+  ]
 
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
-  source_image_id = "${data.azurerm_image.search_Mysql_Image.id}"
+
+  source_image_id = "${count.index == 0 ? data.azurerm_image.search_Mysql_Image.id :data.azurerm_image.search-wordpress_image.id}"
+
   depends_on = [ 
     azurerm_resource_group.RG_Terraform,
-    azurerm_network_interface.NicTerra_Mysql,
-    module.vnet
-   ]
-
-}
-
-resource "azurerm_network_interface_security_group_association" "mysql_nsg_association" {
-  network_interface_id      = azurerm_network_interface.NicTerra_Mysql.id
-  network_security_group_id = data.azurerm_network_security_group.nsg-mysql.id
-}
-resource "azurerm_subnet_network_security_group_association" "mysql_subnet2_association" {
-  subnet_id                 = data.azurerm_subnet.private_subnet_2.id
-  network_security_group_id = data.azurerm_network_security_group.nsg-mysql.id
-}
-
-######## ###########################################        wordpress1  virtual  machine -
-#Create Network interface
-resource "azurerm_network_interface" "NicTerra_wordpress1_Privatesubnet1" {
-  name                = "NIC-wordpress1-private-subnet1-Terraform"
-  location            = azurerm_resource_group.RG_Terraform.location
-  resource_group_name = azurerm_resource_group.RG_Terraform.name
-
-  ip_configuration {
-    name                          = "TestIpTerra1"
-    subnet_id                     = data.azurerm_subnet.private_subnet_1.id
-    private_ip_address_allocation =  "Dynamic"
-    
-  }
-  depends_on = [ 
-    azurerm_resource_group.RG_Terraform,
+    azurerm_network_interface.Network_interface_terraform,
     module.vnet,
-   ]
+
+  ]
 }
-resource "azurerm_network_interface_security_group_association" "wordpress1_nsg1_association" {
-  network_interface_id      = azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.id
-  network_security_group_id = data.azurerm_network_security_group.nsg-wordpress.id
-  depends_on = [ azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1,module.wordpress-network-security-group ]
+
+resource "azurerm_network_interface_security_group_association" "nsg_association" {
+  count=3
+  network_interface_id      = count.index == 0 ? data.azurerm_network_interface.NicTerra_Mysql.id :count.index == 1 ? data.azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.id :data.azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.id
+  network_security_group_id = count.index==0 ?data.azurerm_network_security_group.nsg-mysql.id: data.azurerm_network_security_group.nsg-wordpress.id
+  depends_on = [ azurerm_network_interface.Network_interface_terraform,module.wordpress-network-security-group ]
 }
-resource "azurerm_subnet_network_security_group_association" "wordpress1_subnet1_association" {
-  subnet_id                 = data.azurerm_subnet.private_subnet_1.id
-  network_security_group_id = data.azurerm_network_security_group.nsg-wordpress.id
-  depends_on = [ module.vnet,module.wordpress-network-security-group ]
-}
-#Create virtual machine
-resource "azurerm_linux_virtual_machine" "Wordpress1_Private_Vm" {
-  name                = "Wordpress1-VM-Terraform"
-  resource_group_name = azurerm_resource_group.RG_Terraform.name
-  location            = azurerm_resource_group.RG_Terraform.location
-  size                = "Standard_B1s"
-  admin_username      = "azureuser"
-  admin_password = "Deepu@123#123"
-  disable_password_authentication = false
-  network_interface_ids = [
-    azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.id
-  ]  
-  # custom_data = base64encode(data.template_file.cloud_init.rendered)
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-  source_image_id = "${data.azurerm_image.search-wordpress_image.id}"
+resource "azurerm_subnet_network_security_group_association" "nsg_subnet_association" {
+    count=2
+  subnet_id                 = count.index==0?data.azurerm_subnet.private_subnet_2.id:data.azurerm_subnet.private_subnet_1.id
+  network_security_group_id = count.index==0 ?data.azurerm_network_security_group.nsg-mysql.id: data.azurerm_network_security_group.nsg-wordpress.id
   depends_on = [ 
-    azurerm_resource_group.RG_Terraform,
-    azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1,
-    module.vnet,
-    azurerm_linux_virtual_machine.MySql_Private_Vm,
-    azurerm_network_interface_security_group_association.wordpress1_nsg1_association
-   ]
-   
+    azurerm_network_interface.Network_interface_terraform,
+    module.wordpress-network-security-group 
+    ]
 }
-##azure virtual machine extention for custom script
-resource "azurerm_virtual_machine_extension" "VM_extension_wordpress1" {
-  name                 = "appVM"
-  virtual_machine_id   = azurerm_linux_virtual_machine.Wordpress1_Private_Vm.id
+resource "azurerm_virtual_machine_extension" "VM_extension_wordpress" {
+  count=2
+  name                 = "appVM${count.index}"
+  virtual_machine_id   = count.index==0?data.azurerm_virtual_machine.Wordpress1_Private_Vm.id:data.azurerm_virtual_machine.Wordpress2_Private_Vm.id
   publisher            = "Microsoft.Azure.Extensions"
   type                 = "CustomScript"
   type_handler_version = "2.0"
   settings = jsonencode({
     script = base64encode(data.template_file.script.rendered)
   }) 
-  depends_on = [ azurerm_linux_virtual_machine.Wordpress1_Private_Vm ]
+  depends_on = [ azurerm_linux_virtual_machine.Virtual_Machine ]
 }
-
-
-
-######## ###########################################        wordpress2  virtual  machine -
-#Create Network interface
-resource "azurerm_network_interface" "NicTerra_wordpress2_Privatesubnet1" {
-  name                = "NIC-wordpress2-private-subnet1-Terraform"
-  location            = azurerm_resource_group.RG_Terraform.location
-  resource_group_name = azurerm_resource_group.RG_Terraform.name
-
-  ip_configuration {
-    name                          = "TestIpTerra3"
-    subnet_id                     = data.azurerm_subnet.private_subnet_1.id
-    private_ip_address_allocation =  "Dynamic" 
-  }
-  depends_on = [ 
-    azurerm_resource_group.RG_Terraform,
-    module.vnet,
-   ]
-}
-resource "azurerm_network_interface_security_group_association" "wordpress2_nsg1_association" {
-  network_interface_id      = azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.id
-  network_security_group_id = data.azurerm_network_security_group.nsg-wordpress.id
-}
-
-# #Create virtual machine
-resource "azurerm_linux_virtual_machine" "Wordpress2_Private_Vm" {
-  name                = "Wordpress2-VM-Terraform"
-  resource_group_name = azurerm_resource_group.RG_Terraform.name
-  location            = azurerm_resource_group.RG_Terraform.location
-  size                = "Standard_B1s"
-  admin_username      = "azureuser"
-  admin_password = "Deepu@123#123"
-  disable_password_authentication = false
-  network_interface_ids = [
-    azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.id
-  ]  
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-  source_image_id = "${data.azurerm_image.search-wordpress_image.id}"
-  depends_on = [ 
-    azurerm_resource_group.RG_Terraform,
-    azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1,
-    module.vnet,
-    azurerm_linux_virtual_machine.MySql_Private_Vm
-   ]
-}
-##azure virtual machine extention for custom script
-resource "azurerm_virtual_machine_extension" "VM_extension_wordpress2" {
-  name                 = "appVM"
-  virtual_machine_id   = azurerm_linux_virtual_machine.Wordpress2_Private_Vm.id
-  publisher            = "Microsoft.Azure.Extensions"
-  type                 = "CustomScript"
-  type_handler_version = "2.0"
-  settings = jsonencode({
-    script = base64encode(data.template_file.script.rendered)
-  }) 
-  depends_on = [ azurerm_linux_virtual_machine.Wordpress2_Private_Vm ]
-}
-
 ########################################################           Application Gateway
 
 resource "azurerm_application_gateway" "network" {
@@ -379,7 +263,7 @@ resource "azurerm_application_gateway" "network" {
     for_each = [
     {
       name         = "appgw-terraform-BP1"
-      ip_addresses = ["${azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.private_ip_address}", "${azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.private_ip_address}"]
+      ip_addresses = ["${data.azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1.private_ip_address}", "${data.azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1.private_ip_address}"]
     }
   ]
     content {
@@ -417,13 +301,6 @@ resource "azurerm_application_gateway" "network" {
     azurerm_resource_group.RG_Terraform,
     module.vnet,
     module.Public-ip_module,
-    azurerm_network_interface.NicTerra_wordpress1_Privatesubnet1,
-    azurerm_network_interface.NicTerra_wordpress2_Privatesubnet1
+    azurerm_network_interface.Network_interface_terraform
    ]
 }
-
-
-
-
-
-
