@@ -6,7 +6,7 @@ terraform {
     }
   }
 }
-
+############### azure provider information
 provider "azurerm" {
   features {}
   client_secret = "sUe8Q~pnn1rHDbL5VI~xdMbe1fYaaBX"
@@ -14,8 +14,7 @@ provider "azurerm" {
   tenant_id= "79061f-42f9-92e6-aed843caedcd"
   subscription_id= "f8e788a1-0b7a65d4af19"
 }
-
-
+###################### terraform state backup store in azure containers
 terraform {
   backend "azurerm" {
     resource_group_name  = "Squareops"
