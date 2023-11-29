@@ -182,5 +182,3 @@ data "azurerm_virtual_machine" "Wordpress2_Private_Vm" {
   depends_on = [ azurerm_linux_virtual_machine.Virtual_Machine ]  
   
 }
-
-############################################################### DNS ZONE
