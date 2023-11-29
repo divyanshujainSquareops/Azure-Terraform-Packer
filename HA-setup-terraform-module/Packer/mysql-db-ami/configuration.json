@@ -1,0 +1,26 @@
+{
+    "builders": [{
+        "type": "azure-arm",
+
+        "client_secret" : "sUe8Q~p9VJSawCpNnn1rHDbL5VI~xdMbe1fYaaBX",
+        "client_id" :"316529ec-d22c-424e-9947-2b904b3d01a0",
+       "tenant_id":"79061fd6-8424-42f9-92e6-aed843caedcd",
+        "subscription_id":"f8e70c6c-8155-4228-88a1-0b7a65d4af19",
+
+        "managed_image_resource_group_name": "Squareops",
+        "managed_image_name": "sql-db-image",
+
+        "os_type": "Linux",
+        "image_publisher": "Canonical",
+        "image_offer": "0001-com-ubuntu-server-focal",
+        "image_sku": "20_04-lts-gen2",
+
+
+        "location": "East US2",
+        "vm_size": "Standard_B1s"
+    }],
+    "provisioners": [{
+        "type": "shell" ,
+        "script" : "install.sh"
+    }]
+}
