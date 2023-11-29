@@ -34,3 +34,6 @@ terraform destroy=it destroy resource according to" tfstate file"
 terraform refresh=rescan all the resources and its properties
 terraform console=it start console
 terraform fmt=for proper indentation
+
+terraform state list=give list of all resource
+terraform -target="azurerm_resource_group.example"
