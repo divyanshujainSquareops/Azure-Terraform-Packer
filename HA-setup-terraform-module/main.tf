@@ -233,8 +233,7 @@ resource "azurerm_virtual_machine_extension" "VM_extension_wordpress" {
   depends_on = [ azurerm_linux_virtual_machine.Virtual_Machine ]
 }
 ########################################################           Application Gateway
-
-resource "azurerm_application_gateway" "network" {
+resource "azurerm_application_gateway" "Application_Gateway" {
   name                = "appgateway-terraform"
   resource_group_name = azurerm_resource_group.RG_Terraform.name
   location            = azurerm_resource_group.RG_Terraform.location
@@ -304,3 +303,18 @@ resource "azurerm_application_gateway" "network" {
     azurerm_network_interface.Network_interface_terraform
    ]
 }
+################################### DNS Zone
+resource "azurerm_dns_zone" "dns_zone" {
+  resource_group_name = azurerm_resource_group.RG_Terraform.name
+
+  name = "new_1.solartechengineers.shop"
+}
+resource "azurerm_dns_a_record" "a_record" {
+  name                = "wordpress"
+  zone_name           = azurerm_dns_zone.dns_zone.name
+  resource_group_name = azurerm_resource_group.RG_Terraform.name
+  ttl                 = 300
+  records             = ["${data.azurerm_public_ip.Application-Gateway-publicip.ip_address}"]
+  depends_on = [ module.Public-ip_module,azurerm_application_gateway.Application_Gateway ]
+}
+
