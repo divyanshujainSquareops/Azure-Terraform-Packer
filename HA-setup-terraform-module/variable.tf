@@ -108,13 +108,30 @@ data "azurerm_image" "search_Mysql_Image" {
   depends_on = [ data.azurerm_subnet.private_subnet_1]
 }
 ################################################## virtual image extention shell script variable
+data "azurerm_key_vault" "key_vault" {
+  name                = "Terraform-key-vault1234"
+  resource_group_name = "Squareops"
+}
+data "azurerm_key_vault_secret" "databaseName" {
+  name         = "DatabaseName"
+  key_vault_id = data.azurerm_key_vault.key_vault.id
+}
+data "azurerm_key_vault_secret" "databaseUsername" {
+  name         = "DatabaseUsername"
+  key_vault_id = data.azurerm_key_vault.key_vault.id
+}
+data "azurerm_key_vault_secret" "databasePassword" {
+  name         = "DatabasePassword"
+  key_vault_id = data.azurerm_key_vault.key_vault.id
+}
+
 data "template_file" "script" {
   template = file("cloud-init-script.sh")
 
   vars = {
-    database_name     = "wordpressdb"
-    database_username = "wpuser"
-    database_password = "Deepu@123#"
+    database_name     = "${data.azurerm_key_vault_secret.databaseName.value}"
+    database_username = "${data.azurerm_key_vault_secret.databaseUsername.value}"
+    database_password = "${data.azurerm_key_vault_secret.databasePassword.value}"
     database_host     = data.azurerm_network_interface.NicTerra_Mysql.private_ip_address
   }
    depends_on = [azurerm_network_interface.Network_interface_terraform]
@@ -165,3 +182,5 @@ data "azurerm_virtual_machine" "Wordpress2_Private_Vm" {
   depends_on = [ azurerm_linux_virtual_machine.Virtual_Machine ]  
   
 }
+
+############################################################### DNS ZONE
