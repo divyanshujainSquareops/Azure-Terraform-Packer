@@ -21,3 +21,13 @@
 
 <img width="884" alt="image" src="https://github.com/divyanshujainSquareops/Azure-Terraform-Packer/assets/148210383/43286cbe-6c6a-41c4-8ccd-b636aec024bf">
 
+## Keep following service pre-created
+1. resource grouop=Squareops
+2. azure storage = tfstate214154
+  a. container=tfstate (use to save tfstate file for backup)
+  b. file share=terraformwordpressfileshare  (use linux scrpit in wordpress ami packer)
+3. azure key vault=save secrets of mysq-db
+  username=wpuser
+  password=Deepu@123#
+  databasename=wordpressdb
+
